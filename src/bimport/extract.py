@@ -7,7 +7,21 @@ _JUNK = re.compile(
     re.IGNORECASE,
 )
 _HARD_SEP = re.compile(r"\s*(?:;|&|/|\band\b)\s*")
+_GLUED = re.compile(r"(?<=[а-яё])(?=[А-ЯЁ])")
 _OPF_ROLE = "{http://www.idpf.org/2007/opf}role"
+
+
+def _cyrillic(word: str) -> bool:
+    return any("а" <= c <= "я" or c == "ё" for c in word.lower())
+
+
+def normalize_name(name: str) -> str:
+    words = []
+    for word in _GLUED.sub(" ", name).split():
+        if len(word) >= 3 and word.isupper() and _cyrillic(word):
+            word = "-".join(part.capitalize() for part in word.split("-"))
+        words.append(word)
+    return " ".join(words)
 
 
 def clean(value: str | None) -> str | None:
@@ -34,6 +48,7 @@ def split_authors(raw: str | None) -> list[str]:
     authors: list[str] = []
     for part in parts:
         cleaned = clean(part)
+        cleaned = normalize_name(cleaned) if cleaned else None
         if cleaned and cleaned.casefold() not in seen:
             seen.add(cleaned.casefold())
             authors.append(cleaned)
@@ -69,7 +84,7 @@ def _fb2(path: Path) -> tuple[str | None, list[str]]:
                 parts = {_local(c.tag): _text(c) for c in el}
                 name = " ".join(p for p in (parts.get("first-name"), parts.get("last-name")) if p)
                 if cleaned := clean(name or parts.get("nickname")):
-                    authors.append(cleaned)
+                    authors.append(normalize_name(cleaned))
     except (ET.ParseError, OSError, LookupError):
         return None, []
     return title, list(dict.fromkeys(authors))

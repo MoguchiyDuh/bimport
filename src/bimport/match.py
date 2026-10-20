@@ -62,8 +62,24 @@ def _tiered(query: str, items: list[Book], text: Callable[[Book], str]) -> list[
     return []
 
 
+def natural(text: str) -> str:
+    out: list[str] = []
+    digits = ""
+    for char in text:
+        if char.isdigit():
+            digits += char
+            continue
+        if digits:
+            out.append(digits.zfill(8))
+            digits = ""
+        out.append(char)
+    if digits:
+        out.append(digits.zfill(8))
+    return "".join(out)
+
+
 def sort_key(book: Book) -> tuple[str, str, str]:
-    return (book.lib.casefold(), norm(book.authors[0] if book.authors else ""), norm(book.title))
+    return (book.lib.casefold(), norm(book.authors[0] if book.authors else ""), natural(norm(book.title)))
 
 
 def rank(query: str, books: Iterable[Book]) -> list[tuple[Book, float]]:

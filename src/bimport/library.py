@@ -1,3 +1,4 @@
+import contextlib
 import os
 import sys
 import unicodedata
@@ -340,7 +341,7 @@ def add(
         title=final_title,
         authors=final_authors,
         tags=_clean_list(tags),
-        file=sanitize(final_title, "Untitled") + source.suffix.lower(),
+        file=file_name(final_title, source.suffix),
         added=_now(),
         lib=lib,
         dir=directory,
@@ -351,12 +352,74 @@ def add(
 
 
 def _link_or_copy(src: Path, dst: Path) -> None:
+    if dst.exists():
+        raise BimError(f"{dst} already exists")
     try:
         os.link(src, dst)
     except OSError:
         import shutil
 
         shutil.copy2(src, dst)
+
+
+def file_name(title: str, suffix: str) -> str:
+    return sanitize(title, "Untitled") + suffix.lower()
+
+
+def _relocate(book: Book, directory: Path, file: str) -> Book:
+    moved = book.replace(dir=directory, file=file)
+    if directory != book.dir:
+        _prepare(directory)
+    linked = False
+    if book.path.is_file() and moved.path != book.path:
+        if moved.path.exists() and os.path.samefile(book.path, moved.path):
+            os.rename(book.path, moved.path)
+        else:
+            _link_or_copy(book.path, moved.path)
+            linked = True
+    write_meta(moved)
+    if directory != book.dir:
+        write_meta(book.replace(deleted=True))
+    if linked:
+        book.path.unlink(missing_ok=True)
+    return moved
+
+
+def tidy(cfg: Config, lib: str | None, *, dry_run: bool) -> list[tuple[Book, Path]]:
+    moves: list[tuple[Book, Path]] = []
+    for book in sorted(scan(cfg, lib), key=lambda b: (b.lib, b.sha256)):
+        directory = place(cfg.root / book.lib, book.title, book.authors, force=True, current=book.dir)
+        file = file_name(book.title, Path(book.file).suffix)
+        if directory == book.dir and file == book.file:
+            continue
+        moves.append((book, directory / file))
+        if not dry_run:
+            _relocate(book, directory, file)
+    return moves
+
+
+def prune(cfg: Config, *, days: float, dry_run: bool) -> list[Path]:
+    import time
+
+    cutoff = time.time() - days * 86400
+    removed: list[Path] = []
+    for lib in libraries(cfg):
+        for raw in _book_dirs(os.path.join(cfg.root, lib)):
+            directory = Path(raw)
+            tomb = _tombstone_at(directory)
+            if tomb is None or (directory / META).stat().st_mtime > cutoff:
+                continue
+            _collect(tomb)
+            if any(entry != META for entry in os.listdir(directory)):
+                continue
+            removed.append(directory)
+            if dry_run:
+                continue
+            os.unlink(directory / META)
+            directory.rmdir()
+            with contextlib.suppress(OSError):
+                directory.parent.rmdir()
+    return removed
 
 
 def edit(
@@ -388,15 +451,7 @@ def edit(
     if directory == book.dir:
         write_meta(updated)
         return updated
-
-    _prepare(directory)
-    updated = updated.replace(dir=directory, file=sanitize(new_title, "Untitled") + Path(book.file).suffix)
-    if book.path.is_file():
-        _link_or_copy(book.path, updated.path)
-    write_meta(updated)
-    write_meta(book.replace(deleted=True))
-    book.path.unlink(missing_ok=True)
-    return updated
+    return _relocate(updated, directory, file_name(new_title, Path(book.file).suffix))
 
 
 def remove(book: Book) -> Book:

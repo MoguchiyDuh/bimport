@@ -43,6 +43,8 @@ _bim() {
     'rm:delete a book'
     'libs:list libraries'
     'adopt:write meta.toml into existing book folders'
+    'tidy:move folders to match metadata'
+    'prune:remove old tombstone folders'
     'sync:two-way rsync with a device'
     'completion:print shell completion script'
   )
@@ -81,6 +83,10 @@ _bim() {
           _arguments $json ;;
         adopt)
           _arguments $json '--dry-run[show what would be written]' '1:library:_bim_libs' ;;
+        tidy)
+          _arguments $json '--dry-run[show what would move]' '--lib[library]:library:_bim_libs' ;;
+        prune)
+          _arguments $json '--dry-run[show what would be removed]' '--days[minimum age]:days: ' ;;
         sync)
           _arguments $json \
             '--lib[only this library]:library:_bim_libs' \

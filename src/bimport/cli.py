@@ -267,6 +267,34 @@ def cmd_adopt(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tidy(args: argparse.Namespace) -> int:
+    cfg = load_config()
+    moves = library.tidy(cfg, args.lib, dry_run=args.dry_run)
+    if args.as_json:
+        emit({"dry_run": args.dry_run, "moved": [{**book_json(b), "to": str(p)} for b, p in moves]})
+        return 0
+    verb = "would move" if args.dry_run else "moved"
+    for book, target in moves:
+        print(f"{verb} {book.id}  {book.path.relative_to(cfg.root)}  ->  {target.relative_to(cfg.root)}")
+    print(f"{len(moves)} {'to move' if args.dry_run else 'moved'}", file=sys.stderr)
+    return 0
+
+
+def cmd_prune(args: argparse.Namespace) -> int:
+    if args.days < 0:
+        raise UsageError("--days must be >= 0")
+    cfg = load_config()
+    removed = library.prune(cfg, days=args.days, dry_run=args.dry_run)
+    if args.as_json:
+        emit({"dry_run": args.dry_run, "removed": [str(d) for d in removed]})
+        return 0
+    verb = "would remove" if args.dry_run else "removed"
+    for directory in removed:
+        print(f"{verb} {directory.relative_to(cfg.root)}")
+    print(f"{len(removed)} tombstone{'s' * (len(removed) != 1)} {verb.split()[-1]}", file=sys.stderr)
+    return 0
+
+
 def cmd_sync(args: argparse.Namespace) -> int:
     from bimport.sync import sync
 
@@ -332,6 +360,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = command("adopt", cmd_adopt, "write meta.toml into existing book folders in place; never moves or renames")
     p.add_argument("lib")
+    p.add_argument("--dry-run", action="store_true")
+
+    p = command("tidy", cmd_tidy, "move books into <lib>/<first author>/<title>/<title>.<ext> to match metadata")
+    p.add_argument("--lib")
+    p.add_argument("--dry-run", action="store_true")
+
+    p = command(
+        "prune", cmd_prune, "remove tombstone folders older than --days; run only after every device has synced"
+    )
+    p.add_argument("--days", type=float, default=30.0, help="minimum tombstone age (default 30)")
     p.add_argument("--dry-run", action="store_true")
 
     p = command("sync", cmd_sync, "two-way rsync (pull, clean up, push); newer file wins, nothing deleted remotely")
