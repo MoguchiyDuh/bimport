@@ -1,0 +1,22 @@
+[project]
+name = "bimport"
+version = "0.1.0"
+description = "Personal ebook library CLI: meta.toml per book, fuzzy lookup, two-way rsync"
+readme = "README.md"
+authors = [
+    { name = "MoguchiyDuh", email = "kirnekrasov12@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pymupdf>=2.0",
+    "rapidfuzz>=3.14.6",
+    "tomli-w>=1.2.0",
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+bim = "bimport:main"
+
+[build-system]
+requires = ["uv_build>=0.13.3,<0.14.0"]
+build-backend = "uv_build"
