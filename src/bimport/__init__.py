@@ -7,6 +7,6 @@ def main() -> None:
 
         raise SystemExit(run(sys.argv[2:]))
 
-    from bimport.cli import app
+    from bimport.cli import main as cli_main
 
-    app(prog_name="bim")
+    raise SystemExit(cli_main())

@@ -1,29 +1,39 @@
 import os
 import sys
-import tomllib
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
+from bimport import cache
 from bimport.errors import BimError
 
 
-@dataclass(frozen=True, slots=True)
 class Device:
-    name: str
-    host: str
-    root: str
-    rsync_path: str | None
+    __slots__ = ("host", "name", "root", "rsync_path")
+
+    def __init__(self, name: str, host: str, root: str, rsync_path: str | None) -> None:
+        self.name = name
+        self.host = host
+        self.root = root
+        self.rsync_path = rsync_path
 
 
-@dataclass(frozen=True, slots=True)
 class Config:
-    path: Path
-    root: Path
-    default_lib: str | None
-    opener: str
-    rsync: str
-    devices: dict[str, Device]
+    __slots__ = ("default_lib", "devices", "opener", "path", "root", "rsync")
+
+    def __init__(
+        self,
+        path: Path,
+        root: Path,
+        default_lib: str | None,
+        opener: str,
+        rsync: str,
+        devices: dict[str, Device],
+    ) -> None:
+        self.path = path
+        self.root = root
+        self.default_lib = default_lib
+        self.opener = opener
+        self.rsync = rsync
+        self.devices = devices
 
 
 def config_path() -> Path:
@@ -33,29 +43,44 @@ def config_path() -> Path:
     return Path(base).expanduser() / "bimport" / "config.toml"
 
 
-def _str(table: dict[str, Any], key: str, where: str, default: str | None = None) -> str | None:
+def _str(table: dict[str, object], key: str, where: str, default: str | None = None) -> str | None:
     value = table.get(key, default)
     if value is not None and not isinstance(value, str):
         raise BimError(f"{where}: '{key}' must be a string")
     return value
 
 
+def _read(path: Path) -> dict[str, object]:
+    try:
+        st = os.stat(path)
+    except FileNotFoundError:
+        return {}
+    except OSError as exc:
+        raise BimError(f"cannot read config {path}: {exc}") from exc
+    key = (str(path), st.st_mtime_ns, st.st_size, st.st_ino)
+    cached = cache.load("config")
+    if isinstance(cached, tuple) and len(cached) == 2 and cached[0] == key and isinstance(cached[1], dict):
+        return cached[1]
+
+    import tomllib
+
+    try:
+        with path.open("rb") as fh:
+            data = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise BimError(f"cannot read config {path}: {exc}") from exc
+    cache.save("config", (key, data))
+    return data
+
+
 def load_config() -> Config:
     path = config_path()
-    data: dict[str, Any] = {}
-    if path.is_file():
-        try:
-            with path.open("rb") as fh:
-                data = tomllib.load(fh)
-        except (OSError, tomllib.TOMLDecodeError) as exc:
-            raise BimError(f"cannot read config {path}: {exc}") from exc
-
+    data = _read(path)
     where = str(path)
     default_opener = "open -a sioyek" if sys.platform == "darwin" else "sioyek"
-    root = _str(data, "root", where, "~/Documents/Books")
-    opener = _str(data, "opener", where, default_opener)
-    rsync = _str(data, "rsync", where, "rsync")
-    assert root is not None and opener is not None and rsync is not None
+    root = _str(data, "root", where, "~/Documents/Books") or "~/Documents/Books"
+    opener = _str(data, "opener", where, default_opener) or default_opener
+    rsync = _str(data, "rsync", where, "rsync") or "rsync"
 
     raw_devices = data.get("devices", {})
     if not isinstance(raw_devices, dict):
@@ -68,12 +93,10 @@ def load_config() -> Config:
         host = _str(table, "host", dev_where)
         if not host:
             raise BimError(f"{dev_where}: 'host' is required")
-        dev_root = _str(table, "root", dev_where, "~/Documents/Books")
-        assert dev_root is not None
         devices[name] = Device(
             name=name,
             host=host,
-            root=dev_root,
+            root=_str(table, "root", dev_where, "~/Documents/Books") or "~/Documents/Books",
             rsync_path=_str(table, "rsync_path", dev_where),
         )
 
