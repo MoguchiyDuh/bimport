@@ -22,7 +22,7 @@ bim completion zsh > ~/.zfunc/_bim   # any dir in $fpath
 ```toml
 root = "~/Documents/Books"
 default_lib = "CS"
-opener = "sioyek"            # macOS default: "open -a sioyek"
+opener = "sioyek"            # macOS default: "open -a sioyek" when sioyek is not on PATH
 rsync = "rsync"
 
 [devices.mac]
@@ -37,7 +37,7 @@ rsync_path = "/opt/homebrew/bin/rsync"   # optional, remote rsync binary
 bim add FILE... [-t TITLE] [-a AUTHOR]... [--tag T]... [--lib L] [--force]
 bim ls [QUERY] [-a AUTHOR]... [--tag T]... [--lib L]
 bim show ID|QUERY
-bim open ID|QUERY
+bim open ID|QUERY [-c CHAPTER] [-p PAGE]
 bim edit ID|QUERY [-t TITLE] [-a AUTHOR]... [--tag T]... [--untag T]...
 bim rm ID|QUERY
 bim libs
@@ -49,6 +49,8 @@ bim completion zsh
 Every command takes `--json`.
 
 `ID|QUERY` is an id prefix (4+ hex chars) or a fuzzy query over title, authors and tags. Matching ignores case and diacritics, tolerates typos and matches Cyrillic through Latin transliteration (`zorich` finds `Зорич`). If the top match beats the runner-up by 15+ points it is used. Otherwise a terminal gets a picker, and `--json` or non-TTY callers get exit code 4 with ranked candidates.
+
+`open -c N` jumps to chapter N through the book's table of contents, `-p N` to page N (wins over `-c`). EPUB pages are laid out with sioyek's `epub_width`, `epub_height` and `epub_font_size` from `~/.config/sioyek/prefs_user.config`, so they match what sioyek shows. Jumps need sioyek as the opener.
 
 `rm` in a terminal accepts a query and always asks for confirmation. Non-interactive `rm` requires an exact 8+ char id.
 

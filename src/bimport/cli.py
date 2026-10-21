@@ -3,7 +3,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from bimport import library
+from bimport import library, locate
 from bimport.config import Config, load_config
 from bimport.errors import Ambiguous, BimError, NotFound, UsageError
 from bimport.library import Book, scan
@@ -41,6 +41,16 @@ def dumps(data: object, *, indent: int | None = 2) -> str:
 
 def emit(data: object) -> None:
     print(dumps(data))
+
+
+def positive(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number: {value!r}") from None
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"must be 1 or more: {number}")
+    return number
 
 
 def interactive(as_json: bool) -> bool:
@@ -176,6 +186,15 @@ def cmd_open(args: argparse.Namespace) -> int:
     cmd = shlex.split(cfg.opener)
     if not cmd or shutil.which(cmd[0]) is None:
         raise BimError(f"opener not found: {cfg.opener!r}")
+    page = args.page
+    if page is None and args.chapter is not None:
+        page = locate.chapter_page(book.path, args.chapter)
+    if page is not None:
+        if Path(cmd[0]).name == "sioyek":
+            cmd += ["--page", str(page)]
+        else:
+            library.warn(f"opener {cfg.opener!r} cannot jump to a page; opening at the start")
+            page = None
     subprocess.Popen(
         [*cmd, str(book.path)],
         stdin=subprocess.DEVNULL,
@@ -184,9 +203,12 @@ def cmd_open(args: argparse.Namespace) -> int:
         start_new_session=True,
     )
     if args.as_json:
-        emit(book_json(book))
+        data = book_json(book)
+        if page is not None:
+            data["page"] = page
+        emit(data)
     else:
-        print(f"opened {line(book)}")
+        print(f"opened {line(book)}" + (f"  at page {page}" if page is not None else ""))
     return 0
 
 
@@ -346,7 +368,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lib")
 
     ref(command("show", cmd_show, "show one book"))
-    ref(command("open", cmd_open, "open a book with the configured reader"))
+    p = command("open", cmd_open, "open a book with the configured reader")
+    ref(p)
+    p.add_argument("-c", "--chapter", type=positive, help="jump to chapter N via the table of contents (sioyek only)")
+    p.add_argument("-p", "--page", type=positive, help="jump to page N, overrides --chapter (sioyek only)")
 
     p = command("edit", cmd_edit, "change title, authors or tags; the folder follows title and first author")
     ref(p)

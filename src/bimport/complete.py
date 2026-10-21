@@ -70,8 +70,13 @@ _bim() {
             '*--tag[tag filter]:tag:_bim_tags' \
             '--lib[library]:library:_bim_libs' \
             '1::query: ' ;;
-        show|open|rm)
+        show|rm)
           _arguments $json '1:book:_bim_books' ;;
+        open)
+          _arguments $json \
+            '(-c --chapter)'{-c,--chapter}'[jump to chapter]:chapter: ' \
+            '(-p --page)'{-p,--page}'[jump to page]:page: ' \
+            '1:book:_bim_books' ;;
         edit)
           _arguments $json \
             '(-t --title)'{-t,--title}'[new title]:title: ' \

@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -77,7 +78,7 @@ def load_config() -> Config:
     path = config_path()
     data = _read(path)
     where = str(path)
-    default_opener = "open -a sioyek" if sys.platform == "darwin" else "sioyek"
+    default_opener = "open -a sioyek" if sys.platform == "darwin" and not shutil.which("sioyek") else "sioyek"
     root = _str(data, "root", where, "~/Documents/Books") or "~/Documents/Books"
     opener = _str(data, "opener", where, default_opener) or default_opener
     rsync = _str(data, "rsync", where, "rsync") or "rsync"
