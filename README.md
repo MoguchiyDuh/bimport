@@ -12,7 +12,7 @@ Personal ebook library CLI (`bim`). One folder per book with a `meta.toml` sidec
 
 ```sh
 uv tool install git+https://github.com/MoguchiyDuh/bimport
-bim completion zsh > ~/.zfunc/_bim   # any dir in $fpath
+bim completion zsh > ~/.local/share/zsh/site-functions/_bim
 ```
 
 ## Config
